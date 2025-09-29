@@ -147,7 +147,6 @@ SmartNewsAI/
 ├── tests/                        # Unit tests (planned)
 ├── main.py                       # Main application interface
 ├── requirements.txt              # Python dependencies
-├── GITHUB_ISSUES.md             # Project issues and todo items
 └── README.md                     # This file
 ```
 
