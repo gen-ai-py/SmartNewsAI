@@ -33,7 +33,6 @@
 - [Model Performance](#model-performance)
 - [Dataset Information](#dataset-information)
 - [Development](#development)
-- [Open Issues](#open-issues)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -377,66 +376,6 @@ The recommendation system is designed to be extensible:
 1. **New Recommender Types**: Inherit from base classes in `recommendation_engine.py`
 2. **Custom Similarity Metrics**: Implement new similarity functions
 3. **Advanced Hybrid Methods**: Experiment with different combination strategies
-
-## 🐛 Open Issues
-
-We're actively working to improve Smart News AI. Here are the current open issues organized by priority:
-
-### 🔴 High Priority Issues
-
-1. **Memory Leak in Recommendation Engine During Batch Processing**
-   - *Critical bug affecting production scalability*
-   - Memory usage grows during large batch processing
-   - System crashes after ~5000+ recommendations
-
-2. **Classification Model Shows Poor Performance on Short Articles**  
-   - *Performance issue with articles <100 characters*
-   - Accuracy drops from 85% (long articles) to 45% (short articles)
-   - Affects headline and brief news classification
-
-3. **Training Pipeline Fails with Corrupted UTF-8 Characters**
-   - *Critical bug preventing real-world dataset usage*
-   - System crashes on special characters and emojis
-   - Prevents international content processing
-
-4. **Recommendation System Returns Duplicate Articles**
-   - *Logic bug affecting user experience*
-   - Duplicates appear for users with limited interaction history
-   - Reduces recommendation diversity
-
-5. **Model Serialization Fails for Large Feature Extractors**
-   - *Critical deployment blocker*
-   - Large models (>10K features) fail to save/load
-   - Prevents production model persistence
-
-### 🟡 Normal Priority Issues
-
-6. **Add Cross-Validation Support to Model Comparison Module**
-   - *Enhancement for better model selection*
-   - Currently uses single train-test split
-   - Need k-fold cross-validation for robust comparison
-
-7. **Implement Logging Configuration and Rotation**
-   - *Infrastructure enhancement*
-   - Current single log file approach not production-ready
-   - Need configurable logging with rotation
-
-8. **Add Unit Tests for Data Preprocessing Module**
-   - *Technical debt - testing coverage*
-   - Missing comprehensive unit tests
-   - Goal: >90% code coverage
-
-9. **Improve Documentation and Add API Examples**
-   - *Documentation enhancement*
-   - Need comprehensive API docs and tutorials
-   - Add troubleshooting and deployment guides
-
-10. **Optimize Feature Extraction Performance for Real-time Usage**
-    - *Performance optimization*
-    - Current: 200-500ms per article classification
-    - Goal: <100ms for production deployment
-
-For detailed descriptions and technical specifications of these issues, see [GITHUB_ISSUES.md](GITHUB_ISSUES.md).
 
 ## 🤝 Contributing
 
