@@ -16,6 +16,13 @@ import logging
 import os
 from datetime import datetime
 
+# Import logging configuration (will use default if not already configured)
+try:
+    from .logging_config import get_classifier_logger
+    logger = get_classifier_logger(__name__)
+except ImportError:
+    logger = logging.getLogger(__name__)
+
 class NewsClassifier:
     """Multi-algorithm news classifier with model comparison and selection."""
     
@@ -70,7 +77,7 @@ class NewsClassifier:
             raise ValueError(f"Unsupported model type: {self.model_type}")
         
         self.model = model_configs[self.model_type]
-        logging.info(f"Initialized {self.model_type} classifier")
+        logger.info(f"Initialized {self.model_type} classifier")
     
     def train(self, X_train, y_train, X_val=None, y_val=None):
         """
@@ -82,7 +89,7 @@ class NewsClassifier:
             X_val: Validation features (optional)
             y_val: Validation labels (optional)
         """
-        logging.info(f"Training {self.model_type} classifier...")
+        logger.info(f"Training {self.model_type} classifier...")
         
         start_time = datetime.now()
         self.model.fit(X_train, y_train)
@@ -119,9 +126,9 @@ class NewsClassifier:
         }
         self.training_history.append(history_entry)
         
-        logging.info(f"Training completed in {training_time:.2f}s. Train accuracy: {train_accuracy:.4f}")
+        logger.info(f"Training completed in {training_time:.2f}s. Train accuracy: {train_accuracy:.4f}")
         if val_accuracy:
-            logging.info(f"Validation accuracy: {val_accuracy:.4f}")
+            logger.info(f"Validation accuracy: {val_accuracy:.4f}")
     
     def predict(self, X):
         """Make predictions on new data."""
@@ -192,7 +199,7 @@ class NewsClassifier:
             return []
         
         if len(feature_names) != len(self.feature_importance):
-            logging.warning("Feature names length doesn't match importance scores")
+            logger.warning("Feature names length doesn't match importance scores")
             return []
         
         # Get indices of top features
@@ -223,7 +230,7 @@ class NewsClassifier:
         
         # Use compression and protocol 4 for large models
         joblib.dump(model_data, filepath, compress=3, protocol=4)
-        logging.info(f"Model saved to {filepath}")
+        logger.info(f"Model saved to {filepath}")
     
     def load_model(self, filepath):
         """Load trained model from disk."""
@@ -239,7 +246,7 @@ class NewsClassifier:
         self.training_history = model_data.get('training_history', [])
         self.is_trained = model_data['is_trained']
         
-        logging.info(f"Model loaded from {filepath}")
+        logger.info(f"Model loaded from {filepath}")
 
 class ModelComparison:
     """Compare multiple classifier models."""
@@ -276,13 +283,13 @@ class ModelComparison:
         Returns:
             tuple: (results dict, best model type)
         """
-        logging.info("Starting model comparison...")
+        logger.info("Starting model comparison...")
         
         if self.use_cross_validation:
-            logging.info(f"Using {self.cv_folds}-fold cross-validation")
+            logger.info(f"Using {self.cv_folds}-fold cross-validation")
         
         for model_type in self.model_types:
-            logging.info(f"Training {model_type}...")
+            logger.info(f"Training {model_type}...")
             
             try:
                 # Initialize and train model
@@ -330,26 +337,26 @@ class ModelComparison:
                     # Add CV results to metrics
                     metrics.update(self.cv_results[model_type])
                     
-                    logging.info(f"{model_type} - CV Accuracy: {metrics['cv_accuracy_mean']:.4f} ± {metrics['cv_accuracy_std']:.4f}")
-                    logging.info(f"{model_type} - Test Accuracy: {metrics['accuracy']:.4f}, F1: {metrics['f1_score']:.4f}")
+                    logger.info(f"{model_type} - CV Accuracy: {metrics['cv_accuracy_mean']:.4f} ± {metrics['cv_accuracy_std']:.4f}")
+                    logger.info(f"{model_type} - Test Accuracy: {metrics['accuracy']:.4f}, F1: {metrics['f1_score']:.4f}")
                 else:
-                    logging.info(f"{model_type} - Accuracy: {metrics['accuracy']:.4f}, F1: {metrics['f1_score']:.4f}")
+                    logger.info(f"{model_type} - Accuracy: {metrics['accuracy']:.4f}, F1: {metrics['f1_score']:.4f}")
                 
                 # Store results
                 self.models[model_type] = classifier
                 self.results[model_type] = metrics
                 
             except Exception as e:
-                logging.error(f"Error training {model_type}: {str(e)}")
+                logger.error(f"Error training {model_type}: {str(e)}")
                 continue
         
         # Find best model (use CV accuracy if available, otherwise test accuracy)
         if self.use_cross_validation:
             best_model_type = max(self.results.keys(), key=lambda k: self.results[k].get('cv_accuracy_mean', 0))
-            logging.info(f"Best model: {best_model_type} (CV Accuracy: {self.results[best_model_type]['cv_accuracy_mean']:.4f})")
+            logger.info(f"Best model: {best_model_type} (CV Accuracy: {self.results[best_model_type]['cv_accuracy_mean']:.4f})")
         else:
             best_model_type = max(self.results.keys(), key=lambda k: self.results[k]['accuracy'])
-            logging.info(f"Best model: {best_model_type} (Accuracy: {self.results[best_model_type]['accuracy']:.4f})")
+            logger.info(f"Best model: {best_model_type} (Accuracy: {self.results[best_model_type]['accuracy']:.4f})")
         
         return self.results, best_model_type
     
@@ -371,7 +378,7 @@ class ModelComparison:
             dict: Statistical comparison results
         """
         if not self.use_cross_validation or not self.cv_results:
-            logging.warning("Statistical comparison requires cross-validation to be enabled")
+            logger.warning("Statistical comparison requires cross-validation to be enabled")
             return None
         
         from scipy import stats

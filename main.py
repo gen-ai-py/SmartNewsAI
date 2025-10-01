@@ -16,18 +16,20 @@ from src.data_preprocessing import load_and_preprocess_data, create_train_test_s
 from src.news_classifier import NewsClassifier, ModelComparison
 from src.recommendation_engine import HybridRecommender, generate_sample_interactions
 from src.data_generator import create_sample_data
+from src.logging_config import setup_logging, get_logger
 import pandas as pd
 import numpy as np
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('smart_news_ai.log'),
-        logging.StreamHandler()
-    ]
+# Configure logging with rotation and multiple handlers
+config_file = os.path.join(os.path.dirname(__file__), 'config', 'logging_config.yaml')
+logging_config = setup_logging(
+    config_file=config_file if os.path.exists(config_file) else None,
+    log_dir='logs',
+    log_level='INFO'
 )
+
+# Get module logger
+logger = get_logger(__name__)
 
 class SmartNewsAI:
     """Main application class for Smart News AI system."""
@@ -463,10 +465,11 @@ def main():
     
     except KeyboardInterrupt:
         print("\\n\\nOperation cancelled by user.")
+        logger.info("Operation cancelled by user")
     except Exception as e:
-        logging.error(f"Error: {str(e)}")
+        logger.error(f"Error in main execution: {str(e)}", exc_info=True)
         print(f"An error occurred: {str(e)}")
-        print("Check the log file 'smart_news_ai.log' for details.")
+        print("Check the log files in 'logs/' directory for details.")
 
 if __name__ == "__main__":
     main()

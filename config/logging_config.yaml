@@ -1,0 +1,129 @@
+# Smart News AI - Logging Configuration
+# ==========================================
+# This file configures the logging system for the entire application.
+# 
+# Features:
+# - Rotating file handlers (size-based and time-based)
+# - Separate log files for different components
+# - Configurable log levels per module
+# - Multiple output handlers (console, file)
+
+# Configuration version
+version: 1
+
+# Default log directory (relative to project root)
+log_dir: logs
+
+# Default log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+log_level: INFO
+
+# Handler configurations
+handlers:
+  # Console handler - for terminal output
+  console:
+    level: INFO
+    format: simple  # Options: simple, default, detailed
+    
+  # File handler - for main log file
+  file:
+    level: DEBUG
+    format: detailed  # Options: simple, default, detailed
+    rotation: size    # Options: size, time
+    max_bytes: 10485760  # 10 MB (for size-based rotation)
+    backup_count: 5   # Number of backup files to keep
+    # when: midnight  # For time-based rotation (midnight, H, D, W0-W6)
+
+# Component-specific loggers
+# Each component can have its own log file and log level
+loggers:
+  # News Classifier component
+  classifier:
+    level: INFO
+    file: classifier.log
+    description: Logs from news classification models and training
+    
+  # Recommendation Engine component
+  recommender:
+    level: INFO
+    file: recommender.log
+    description: Logs from recommendation system and user profiling
+    
+  # API component (for future API endpoints)
+  api:
+    level: INFO
+    file: api.log
+    description: Logs from API requests and responses
+    
+  # Data Processing component
+  data:
+    level: INFO
+    file: data.log
+    description: Logs from data preprocessing and feature extraction
+
+# Production environment overrides
+# Uncomment these lines for production deployment
+# production:
+#   log_level: WARNING
+#   handlers:
+#     console:
+#       level: WARNING
+#     file:
+#       level: INFO
+#       rotation: time
+#       when: midnight
+#       backup_count: 30
+
+# Development environment overrides
+# Uncomment these lines for development
+# development:
+#   log_level: DEBUG
+#   handlers:
+#     console:
+#       level: DEBUG
+#     file:
+#       level: DEBUG
+
+# Log file rotation settings
+rotation:
+  # Size-based rotation
+  size:
+    max_bytes: 10485760  # 10 MB
+    backup_count: 5
+    
+  # Time-based rotation
+  time:
+    when: midnight       # Options: S, M, H, D, midnight, W0-W6
+    interval: 1          # Rotation interval
+    backup_count: 30     # Keep 30 days of logs
+    
+# Log cleanup settings
+cleanup:
+  enabled: true
+  max_age_days: 30      # Delete logs older than 30 days
+  run_on_startup: false # Run cleanup when application starts
+
+# Log format templates
+# You can customize these formats as needed
+formats:
+  simple: '%(asctime)s - %(levelname)s - %(message)s'
+  default: '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s'
+  detailed: '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(funcName)s() - %(message)s'
+  json: '{"timestamp": "%(asctime)s", "logger": "%(name)s", "level": "%(levelname)s", "file": "%(filename)s", "line": %(lineno)d, "message": "%(message)s"}'
+
+# Advanced settings
+advanced:
+  # Prevent duplicate log messages
+  propagate: false
+  
+  # Encoding for log files
+  encoding: utf-8
+  
+  # Date format for timestamps
+  date_format: '%Y-%m-%d %H:%M:%S'
+  
+  # Enable/disable logging to syslog (for production)
+  syslog:
+    enabled: false
+    address: localhost
+    port: 514
+    facility: LOG_USER
