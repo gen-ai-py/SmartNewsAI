@@ -192,6 +192,55 @@ class SmartNewsAI:
         recommendations = self.recommender.get_recommendations(user_id, n_recommendations)
         return recommendations
     
+    def batch_recommendations(self, user_ids, n_recommendations=5, log_memory=True):
+        """
+        Generate recommendations for multiple users in batch mode.
+        Optimized for large-scale processing with memory management.
+        
+        Args:
+            user_ids: List of user IDs
+            n_recommendations: Number of recommendations per user
+            log_memory: Whether to log memory usage
+        
+        Returns:
+            dict: User ID -> recommendations mapping
+        """
+        if self.recommender is None:
+            print("Error: Recommender not trained.")
+            return None
+        
+        import gc
+        results = {}
+        
+        print(f"\nProcessing {len(user_ids)} users in batch mode...")
+        
+        for i, user_id in enumerate(user_ids):
+            # Get recommendations with batch_mode enabled
+            recommendations = self.recommender.get_recommendations(
+                user_id, 
+                n_recommendations, 
+                batch_mode=True
+            )
+            results[user_id] = recommendations
+            
+            # Periodic memory cleanup
+            if (i + 1) % 100 == 0:
+                gc.collect()
+                
+                if log_memory:
+                    memory_mb = self.recommender.get_profile_memory_usage()
+                    print(f"Processed {i+1}/{len(user_ids)} users | " + 
+                          f"Profile memory: {memory_mb:.2f} MB | " +
+                          f"Active profiles: {len(self.recommender.user_profiles)}")
+        
+        print(f"\nBatch processing complete! Total users processed: {len(results)}")
+        
+        if log_memory:
+            final_memory = self.recommender.get_profile_memory_usage()
+            print(f"Final profile memory usage: {final_memory:.2f} MB")
+        
+        return results
+    
     def simulate_user_interactions(self, user_id, n_interactions=5):
         """Simulate some user interactions for demo purposes."""
         if self.recommender is None:

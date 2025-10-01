@@ -38,6 +38,11 @@ class UserProfile:
         self.reading_history.append(interaction)
         self._update_preferences()
         self.last_updated = datetime.now()
+        
+        # Limit reading history size to prevent memory leak
+        max_history_size = 1000
+        if len(self.reading_history) > max_history_size:
+            self.reading_history = self.reading_history[-max_history_size:]
     
     def _update_preferences(self):
         """Update user preferences based on reading history."""
@@ -282,12 +287,13 @@ class CollaborativeFilteringRecommender:
 class HybridRecommender:
     """Hybrid recommendation system combining content-based and collaborative filtering."""
     
-    def __init__(self, content_weight=0.6, collaborative_weight=0.4):
+    def __init__(self, content_weight=0.6, collaborative_weight=0.4, max_user_profiles=10000):
         self.content_recommender = ContentBasedRecommender()
         self.collaborative_recommender = CollaborativeFilteringRecommender()
         self.content_weight = content_weight
         self.collaborative_weight = collaborative_weight
         self.user_profiles = {}
+        self.max_user_profiles = max_user_profiles
     
     def fit(self, articles_df, interactions_df=None):
         """Fit both recommendation models."""
@@ -307,16 +313,42 @@ class HybridRecommender:
     def get_user_profile(self, user_id):
         """Get or create user profile."""
         if user_id not in self.user_profiles:
+            # Check if we need to clean up old profiles
+            if len(self.user_profiles) >= self.max_user_profiles:
+                self._cleanup_old_profiles()
+            
             self.user_profiles[user_id] = UserProfile(user_id)
         return self.user_profiles[user_id]
+    
+    def _cleanup_old_profiles(self):
+        """Remove least recently used profiles to prevent memory leak."""
+        # Sort profiles by last_updated timestamp
+        sorted_profiles = sorted(
+            self.user_profiles.items(),
+            key=lambda x: x[1].last_updated
+        )
+        
+        # Remove oldest 20% of profiles
+        num_to_remove = int(len(sorted_profiles) * 0.2)
+        for user_id, _ in sorted_profiles[:num_to_remove]:
+            del self.user_profiles[user_id]
+        
+        logging.info(f"Cleaned up {num_to_remove} old user profiles. Current profiles: {len(self.user_profiles)}")
     
     def add_user_interaction(self, user_id, article_id, category, rating):
         """Add user interaction and update profile."""
         user_profile = self.get_user_profile(user_id)
         user_profile.add_interaction(article_id, category, rating)
     
-    def get_recommendations(self, user_id, n_recommendations=10):
-        """Get hybrid recommendations for user."""
+    def get_recommendations(self, user_id, n_recommendations=10, batch_mode=False):
+        """
+        Get hybrid recommendations for user.
+        
+        Args:
+            user_id: User ID
+            n_recommendations: Number of recommendations to return
+            batch_mode: If True, optimizes for batch processing by limiting memory usage
+        """
         user_profile = self.get_user_profile(user_id)
         
         # Get content-based recommendations
@@ -386,17 +418,41 @@ class HybridRecommender:
         
         # Sort by hybrid score and return top N
         final_recommendations.sort(key=lambda x: x['hybrid_score'], reverse=True)
+        
+        # Clean up temporary data in batch mode to prevent memory leak
+        if batch_mode:
+            del content_recs
+            del hybrid_scores
+            if self.has_collaborative:
+                del collab_recs
+        
         return final_recommendations[:n_recommendations]
     
-    def save_model(self, filepath):
+    def clear_user_profiles(self):
+        """Clear all user profiles to free memory."""
+        self.user_profiles.clear()
+        logging.info("All user profiles cleared")
+    
+    def get_profile_memory_usage(self):
+        """Get approximate memory usage of user profiles."""
+        import sys
+        total_size = sys.getsizeof(self.user_profiles)
+        for user_id, profile in self.user_profiles.items():
+            total_size += sys.getsizeof(user_id)
+            total_size += sys.getsizeof(profile.reading_history)
+            total_size += sys.getsizeof(profile.category_weights)
+        return total_size / (1024 * 1024)  # Return in MB
+    
+    def save_model(self, filepath, include_user_profiles=True):
         """Save the hybrid recommender model."""
         model_data = {
             'content_recommender': self.content_recommender,
             'collaborative_recommender': self.collaborative_recommender,
-            'user_profiles': self.user_profiles,
+            'user_profiles': self.user_profiles if include_user_profiles else {},
             'content_weight': self.content_weight,
             'collaborative_weight': self.collaborative_weight,
-            'has_collaborative': self.has_collaborative
+            'has_collaborative': self.has_collaborative,
+            'max_user_profiles': self.max_user_profiles
         }
         
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -412,12 +468,14 @@ class HybridRecommender:
         
         self.content_recommender = model_data['content_recommender']
         self.collaborative_recommender = model_data['collaborative_recommender']
-        self.user_profiles = model_data['user_profiles']
+        self.user_profiles = model_data.get('user_profiles', {})
         self.content_weight = model_data['content_weight']
         self.collaborative_weight = model_data['collaborative_weight']
         self.has_collaborative = model_data['has_collaborative']
+        self.max_user_profiles = model_data.get('max_user_profiles', 10000)
         
         logging.info(f"Hybrid recommender loaded from {filepath}")
+        logging.info(f"Loaded {len(self.user_profiles)} user profiles")
 
 def generate_sample_interactions(articles_df, n_users=100, n_interactions=1000):
     """Generate sample user interactions for testing."""
