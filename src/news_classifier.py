@@ -206,7 +206,7 @@ class NewsClassifier:
         return top_features
     
     def save_model(self, filepath):
-        """Save trained model to disk."""
+        """Save trained model to disk with compression for large models."""
         if not self.is_trained:
             raise ValueError("No trained model to save")
         
@@ -221,7 +221,8 @@ class NewsClassifier:
             'is_trained': self.is_trained
         }
         
-        joblib.dump(model_data, filepath)
+        # Use compression and protocol 4 for large models
+        joblib.dump(model_data, filepath, compress=3, protocol=4)
         logging.info(f"Model saved to {filepath}")
     
     def load_model(self, filepath):

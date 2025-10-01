@@ -106,11 +106,12 @@ class SmartNewsAI:
             model_path = os.path.join("models", f"classifier_{model_type}.pkl")
             self.classifier.save_model(model_path)
             
-            # Save feature extractor
+            # Save feature extractor with compression
             import joblib
             fe_path = os.path.join("models", "feature_extractor.pkl")
-            joblib.dump(self.feature_extractor, fe_path)
+            joblib.dump(self.feature_extractor, fe_path, compress=3, protocol=4)
             print(f"\\nModel saved to {model_path}")
+            print(f"Feature extractor saved to {fe_path}")
     
     def compare_models(self, use_cross_validation=True, cv_folds=5):
         """Compare different classification models."""
