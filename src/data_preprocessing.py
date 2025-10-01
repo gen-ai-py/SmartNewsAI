@@ -24,8 +24,9 @@ except:
 class TextPreprocessor:
     """Text preprocessing pipeline for news articles."""
     
-    def __init__(self):
+    def __init__(self, augment_short_text=True):
         self.stemmer = PorterStemmer()
+        self.augment_short_text = augment_short_text
         try:
             self.stop_words = set(stopwords.words('english'))
         except:
@@ -72,15 +73,24 @@ class TextPreprocessor:
     def preprocess_pipeline(self, text):
         """Complete preprocessing pipeline."""
         cleaned_text = self.clean_text(text)
+        
+        # Augment short text by keeping original + cleaned version
+        if self.augment_short_text and len(cleaned_text) < 100:
+            tokens = self.tokenize_and_stem(cleaned_text)
+            # For short text, combine original words with stemmed tokens
+            augmented = cleaned_text + ' ' + ' '.join(tokens)
+            return augmented
+        
         tokens = self.tokenize_and_stem(cleaned_text)
         return ' '.join(tokens)
 
 class FeatureExtractor:
     """Feature extraction for news articles."""
     
-    def __init__(self, max_features=5000, use_tfidf=True):
+    def __init__(self, max_features=5000, use_tfidf=True, min_df=1):
         self.max_features = max_features
         self.use_tfidf = use_tfidf
+        self.min_df = min_df  # Lower min_df for short text
         self.vectorizer = None
         self.label_encoder = LabelEncoder()
         self.preprocessor = TextPreprocessor()
@@ -91,17 +101,20 @@ class FeatureExtractor:
         processed_texts = [self.preprocessor.preprocess_pipeline(text) for text in texts]
         
         if self.use_tfidf:
+            # Use character n-grams for short text handling
             self.vectorizer = TfidfVectorizer(
                 max_features=self.max_features,
-                ngram_range=(1, 2),
-                min_df=2,
-                max_df=0.8
+                analyzer='char_wb',  # Character word boundary n-grams
+                ngram_range=(2, 4),  # Character-level 2-4 grams capture short text features
+                min_df=self.min_df,  # Lower threshold for short texts
+                max_df=0.8,
+                sublinear_tf=True  # Log scaling helps with short text
             )
         else:
             self.vectorizer = CountVectorizer(
                 max_features=self.max_features,
-                ngram_range=(1, 2),
-                min_df=2,
+                ngram_range=(1, 3),
+                min_df=self.min_df,
                 max_df=0.8
             )
         
