@@ -38,6 +38,12 @@ class TextPreprocessor:
         if not isinstance(text, str):
             return ""
         
+        # Handle UTF-8 encoding errors
+        try:
+            text = text.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
+        except (UnicodeDecodeError, UnicodeEncodeError, AttributeError):
+            text = str(text)
+        
         # Convert to lowercase
         text = text.lower()
         
@@ -150,7 +156,8 @@ class FeatureExtractor:
 def load_and_preprocess_data(data_path, text_column='content', label_column='category'):
     """Load and preprocess news data from CSV file."""
     try:
-        df = pd.read_csv(data_path)
+        # Load with UTF-8 encoding and error handling
+        df = pd.read_csv(data_path, encoding='utf-8', encoding_errors='ignore')
         
         # Basic data validation
         if text_column not in df.columns or label_column not in df.columns:
