@@ -14,12 +14,19 @@ from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer
 import logging
 
+# Import logging configuration (will use default if not already configured)
+try:
+    from .logging_config import get_data_logger
+    logger = get_data_logger(__name__)
+except ImportError:
+    logger = logging.getLogger(__name__)
+
 # Download required NLTK data
 try:
     nltk.download('punkt', quiet=True)
     nltk.download('stopwords', quiet=True)
 except:
-    logging.warning("Failed to download NLTK data. Some features may not work.")
+    logger.warning("Failed to download NLTK data. Some features may not work.")
 
 class TextPreprocessor:
     """Text preprocessing pipeline for news articles."""
@@ -31,7 +38,7 @@ class TextPreprocessor:
             self.stop_words = set(stopwords.words('english'))
         except:
             self.stop_words = set()
-            logging.warning("Stopwords not available. Using empty set.")
+            logger.warning("Stopwords not available. Using empty set.")
     
     def clean_text(self, text):
         """Clean and normalize text data."""
@@ -127,7 +134,7 @@ class FeatureExtractor:
         
         features = self.vectorizer.fit_transform(processed_texts)
         self._vocab_size = len(self.vectorizer.vocabulary_)
-        logging.info(f"Vocabulary size: {self._vocab_size}")
+        logger.info(f"Vocabulary size: {self._vocab_size}")
         return features
     
     def transform_text(self, texts):
@@ -179,7 +186,7 @@ def load_and_preprocess_data(data_path, text_column='content', label_column='cat
         return X, y, feature_extractor, df
     
     except Exception as e:
-        logging.error(f"Error loading data: {str(e)}")
+        logger.error(f"Error loading data: {str(e)}")
         raise
 
 def create_train_test_split(X, y, test_size=0.2, random_state=42):
