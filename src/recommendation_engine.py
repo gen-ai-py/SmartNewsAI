@@ -351,17 +351,26 @@ class HybridRecommender:
         """
         user_profile = self.get_user_profile(user_id)
         
+        # Track already recommended articles to prevent duplicates
+        seen_articles = set()
+        
         # Get content-based recommendations
         content_recs = self.content_recommender.recommend_by_category_preference(
             user_profile, 
-            n_recommendations * 2  # Get more to allow for diversity
+            n_recommendations * 3  # Get more to ensure enough unique articles after deduplication
         )
         
         hybrid_scores = {}
         
-        # Score content-based recommendations
+        # Score content-based recommendations (avoid duplicates)
         for rec in content_recs:
             article_id = rec['article_id']
+            
+            # Skip if already seen
+            if article_id in seen_articles:
+                continue
+            
+            seen_articles.add(article_id)
             content_score = rec['preference_score']
             hybrid_scores[article_id] = {
                 'content_score': content_score,
@@ -379,6 +388,11 @@ class HybridRecommender:
             
             for rec in collab_recs:
                 article_id = rec['article_id']
+                
+                # Skip if already seen
+                if article_id in seen_articles:
+                    continue
+                
                 collab_score = (rec['predicted_rating'] - 2.5) / 2.5  # Normalize to 0-1
                 
                 if article_id in hybrid_scores:
@@ -390,6 +404,7 @@ class HybridRecommender:
                             self.content_recommender.articles_df['id'] == article_id
                         ].iloc[0]
                         
+                        seen_articles.add(article_id)
                         hybrid_scores[article_id] = {
                             'content_score': 0.0,
                             'collaborative_score': collab_score,
@@ -399,9 +414,16 @@ class HybridRecommender:
                     except:
                         continue
         
-        # Calculate hybrid scores
+        # Calculate hybrid scores (ensure no duplicates in final list)
         final_recommendations = []
+        final_article_ids = set()
+        
         for article_id, scores in hybrid_scores.items():
+            # Double-check for duplicates before adding to final list
+            if article_id in final_article_ids:
+                continue
+            
+            final_article_ids.add(article_id)
             hybrid_score = (
                 scores['content_score'] * self.content_weight +
                 scores['collaborative_score'] * self.collaborative_weight
