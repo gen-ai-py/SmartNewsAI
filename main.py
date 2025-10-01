@@ -112,7 +112,7 @@ class SmartNewsAI:
             joblib.dump(self.feature_extractor, fe_path)
             print(f"\\nModel saved to {model_path}")
     
-    def compare_models(self):
+    def compare_models(self, use_cross_validation=True, cv_folds=5):
         """Compare different classification models."""
         print("\\nComparing different models...")
         
@@ -121,14 +121,22 @@ class SmartNewsAI:
         y = self.feature_extractor.fit_transform_labels(self.articles_df['category'].tolist())
         X_train, X_test, y_train, y_test = create_train_test_split(X, y, test_size=0.2)
         
-        # Compare models
-        comparison = ModelComparison(['random_forest', 'logistic_regression', 'naive_bayes'])
+        # Compare models with optional cross-validation
+        comparison = ModelComparison(
+            ['random_forest', 'logistic_regression', 'naive_bayes'],
+            use_cross_validation=use_cross_validation,
+            cv_folds=cv_folds
+        )
         results, best_model = comparison.compare_models(X_train, y_train, X_test, y_test)
         
         print("\\nModel Comparison Results:")
         results_df = comparison.get_results_dataframe()
         print(results_df.to_string())
         print(f"\\nBest performing model: {best_model}")
+        
+        # Display cross-validation visualization if enabled
+        if use_cross_validation:
+            print(comparison.visualize_cv_results())
     
     def train_recommender(self, save_model=True):
         """Train recommendation system."""
@@ -183,6 +191,55 @@ class SmartNewsAI:
         
         recommendations = self.recommender.get_recommendations(user_id, n_recommendations)
         return recommendations
+    
+    def batch_recommendations(self, user_ids, n_recommendations=5, log_memory=True):
+        """
+        Generate recommendations for multiple users in batch mode.
+        Optimized for large-scale processing with memory management.
+        
+        Args:
+            user_ids: List of user IDs
+            n_recommendations: Number of recommendations per user
+            log_memory: Whether to log memory usage
+        
+        Returns:
+            dict: User ID -> recommendations mapping
+        """
+        if self.recommender is None:
+            print("Error: Recommender not trained.")
+            return None
+        
+        import gc
+        results = {}
+        
+        print(f"\nProcessing {len(user_ids)} users in batch mode...")
+        
+        for i, user_id in enumerate(user_ids):
+            # Get recommendations with batch_mode enabled
+            recommendations = self.recommender.get_recommendations(
+                user_id, 
+                n_recommendations, 
+                batch_mode=True
+            )
+            results[user_id] = recommendations
+            
+            # Periodic memory cleanup
+            if (i + 1) % 100 == 0:
+                gc.collect()
+                
+                if log_memory:
+                    memory_mb = self.recommender.get_profile_memory_usage()
+                    print(f"Processed {i+1}/{len(user_ids)} users | " + 
+                          f"Profile memory: {memory_mb:.2f} MB | " +
+                          f"Active profiles: {len(self.recommender.user_profiles)}")
+        
+        print(f"\nBatch processing complete! Total users processed: {len(results)}")
+        
+        if log_memory:
+            final_memory = self.recommender.get_profile_memory_usage()
+            print(f"Final profile memory usage: {final_memory:.2f} MB")
+        
+        return results
     
     def simulate_user_interactions(self, user_id, n_interactions=5):
         """Simulate some user interactions for demo purposes."""
@@ -344,6 +401,8 @@ def main():
     parser.add_argument('--setup-data', action='store_true', help='Generate sample data')
     parser.add_argument('--train-classifier', choices=['random_forest', 'logistic_regression', 'naive_bayes', 'svm'], help='Train classifier with specified model')
     parser.add_argument('--compare-models', action='store_true', help='Compare different classification models')
+    parser.add_argument('--use-cv', action='store_true', help='Use cross-validation in model comparison')
+    parser.add_argument('--cv-folds', type=int, default=5, help='Number of folds for cross-validation (default: 5)')
     parser.add_argument('--train-recommender', action='store_true', help='Train recommendation system')
     parser.add_argument('--demo', action='store_true', help='Run interactive demo')
     parser.add_argument('--classify', type=str, help='Classify given text')
@@ -363,7 +422,7 @@ def main():
         
         # Compare models if requested
         if args.compare_models:
-            app.compare_models()
+            app.compare_models(use_cross_validation=args.use_cv, cv_folds=args.cv_folds)
         
         # Train recommender if requested
         if args.train_recommender:
