@@ -243,17 +243,42 @@ class NewsClassifier:
 class ModelComparison:
     """Compare multiple classifier models."""
     
-    def __init__(self, model_types=None):
+    def __init__(self, model_types=None, use_cross_validation=False, cv_folds=5):
+        """
+        Initialize ModelComparison.
+        
+        Args:
+            model_types (list): List of model types to compare
+            use_cross_validation (bool): Whether to use cross-validation (default: False)
+            cv_folds (int): Number of folds for cross-validation (default: 5)
+        """
         if model_types is None:
             model_types = ['random_forest', 'logistic_regression', 'naive_bayes', 'gradient_boosting']
         
         self.model_types = model_types
         self.models = {}
         self.results = {}
+        self.use_cross_validation = use_cross_validation
+        self.cv_folds = cv_folds
+        self.cv_results = {}
     
     def compare_models(self, X_train, y_train, X_test, y_test):
-        """Compare multiple models and return results."""
+        """
+        Compare multiple models and return results.
+        
+        Args:
+            X_train: Training features
+            y_train: Training labels
+            X_test: Test features
+            y_test: Test labels
+            
+        Returns:
+            tuple: (results dict, best model type)
+        """
         logging.info("Starting model comparison...")
+        
+        if self.use_cross_validation:
+            logging.info(f"Using {self.cv_folds}-fold cross-validation")
         
         for model_type in self.model_types:
             logging.info(f"Training {model_type}...")
@@ -263,22 +288,67 @@ class ModelComparison:
                 classifier = NewsClassifier(model_type)
                 classifier.train(X_train, y_train)
                 
-                # Evaluate model
+                # Evaluate model on test set
                 metrics = classifier.evaluate(X_test, y_test, detailed=False)
+                
+                # Perform cross-validation if enabled
+                if self.use_cross_validation:
+                    from sklearn.model_selection import cross_validate
+                    from sklearn.model_selection import StratifiedKFold
+                    
+                    # Combine train and test for cross-validation
+                    from scipy.sparse import vstack
+                    X_combined = vstack([X_train, X_test])
+                    y_combined = np.concatenate([y_train, y_test])
+                    
+                    # Perform cross-validation
+                    cv = StratifiedKFold(n_splits=self.cv_folds, shuffle=True, random_state=42)
+                    cv_scores = cross_validate(
+                        classifier.model,
+                        X_combined,
+                        y_combined,
+                        cv=cv,
+                        scoring=['accuracy', 'precision_weighted', 'recall_weighted', 'f1_weighted'],
+                        return_train_score=True
+                    )
+                    
+                    # Store cross-validation results
+                    self.cv_results[model_type] = {
+                        'cv_accuracy_mean': cv_scores['test_accuracy'].mean(),
+                        'cv_accuracy_std': cv_scores['test_accuracy'].std(),
+                        'cv_precision_mean': cv_scores['test_precision_weighted'].mean(),
+                        'cv_precision_std': cv_scores['test_precision_weighted'].std(),
+                        'cv_recall_mean': cv_scores['test_recall_weighted'].mean(),
+                        'cv_recall_std': cv_scores['test_recall_weighted'].std(),
+                        'cv_f1_mean': cv_scores['test_f1_weighted'].mean(),
+                        'cv_f1_std': cv_scores['test_f1_weighted'].std(),
+                        'cv_train_accuracy_mean': cv_scores['train_accuracy'].mean(),
+                        'cv_scores_detail': cv_scores['test_accuracy']
+                    }
+                    
+                    # Add CV results to metrics
+                    metrics.update(self.cv_results[model_type])
+                    
+                    logging.info(f"{model_type} - CV Accuracy: {metrics['cv_accuracy_mean']:.4f} ± {metrics['cv_accuracy_std']:.4f}")
+                    logging.info(f"{model_type} - Test Accuracy: {metrics['accuracy']:.4f}, F1: {metrics['f1_score']:.4f}")
+                else:
+                    logging.info(f"{model_type} - Accuracy: {metrics['accuracy']:.4f}, F1: {metrics['f1_score']:.4f}")
                 
                 # Store results
                 self.models[model_type] = classifier
                 self.results[model_type] = metrics
                 
-                logging.info(f"{model_type} - Accuracy: {metrics['accuracy']:.4f}, F1: {metrics['f1_score']:.4f}")
-                
             except Exception as e:
                 logging.error(f"Error training {model_type}: {str(e)}")
                 continue
         
-        # Find best model
-        best_model_type = max(self.results.keys(), key=lambda k: self.results[k]['accuracy'])
-        logging.info(f"Best model: {best_model_type} (Accuracy: {self.results[best_model_type]['accuracy']:.4f})")
+        # Find best model (use CV accuracy if available, otherwise test accuracy)
+        if self.use_cross_validation:
+            best_model_type = max(self.results.keys(), key=lambda k: self.results[k].get('cv_accuracy_mean', 0))
+            logging.info(f"Best model: {best_model_type} (CV Accuracy: {self.results[best_model_type]['cv_accuracy_mean']:.4f})")
+        else:
+            best_model_type = max(self.results.keys(), key=lambda k: self.results[k]['accuracy'])
+            logging.info(f"Best model: {best_model_type} (Accuracy: {self.results[best_model_type]['accuracy']:.4f})")
         
         return self.results, best_model_type
     
@@ -290,6 +360,82 @@ class ModelComparison:
         df = pd.DataFrame(self.results).T
         df.index.name = 'Model'
         return df.round(4)
+    
+    def get_statistical_comparison(self):
+        """
+        Perform statistical significance testing between models using paired t-test.
+        Only available when cross-validation is enabled.
+        
+        Returns:
+            dict: Statistical comparison results
+        """
+        if not self.use_cross_validation or not self.cv_results:
+            logging.warning("Statistical comparison requires cross-validation to be enabled")
+            return None
+        
+        from scipy import stats
+        
+        model_list = list(self.cv_results.keys())
+        comparisons = {}
+        
+        for i, model1 in enumerate(model_list):
+            for model2 in model_list[i+1:]:
+                scores1 = self.cv_results[model1]['cv_scores_detail']
+                scores2 = self.cv_results[model2]['cv_scores_detail']
+                
+                # Perform paired t-test
+                t_stat, p_value = stats.ttest_rel(scores1, scores2)
+                
+                comparison_key = f"{model1}_vs_{model2}"
+                comparisons[comparison_key] = {
+                    'model1': model1,
+                    'model2': model2,
+                    'model1_mean': scores1.mean(),
+                    'model2_mean': scores2.mean(),
+                    't_statistic': t_stat,
+                    'p_value': p_value,
+                    'significant': p_value < 0.05,
+                    'better_model': model1 if scores1.mean() > scores2.mean() else model2
+                }
+        
+        return comparisons
+    
+    def visualize_cv_results(self):
+        """
+        Visualize cross-validation results.
+        Returns a formatted string with visualization data.
+        """
+        if not self.use_cross_validation or not self.cv_results:
+            return "Cross-validation results not available"
+        
+        output = ["\n=== Cross-Validation Results ==="]
+        output.append(f"\nNumber of folds: {self.cv_folds}")
+        output.append("\n" + "-" * 80)
+        
+        for model_type, cv_result in self.cv_results.items():
+            output.append(f"\n{model_type.upper()}:")
+            output.append(f"  Accuracy:  {cv_result['cv_accuracy_mean']:.4f} ± {cv_result['cv_accuracy_std']:.4f}")
+            output.append(f"  Precision: {cv_result['cv_precision_mean']:.4f} ± {cv_result['cv_precision_std']:.4f}")
+            output.append(f"  Recall:    {cv_result['cv_recall_mean']:.4f} ± {cv_result['cv_recall_std']:.4f}")
+            output.append(f"  F1-Score:  {cv_result['cv_f1_mean']:.4f} ± {cv_result['cv_f1_std']:.4f}")
+            output.append(f"  Fold scores: {[f'{score:.4f}' for score in cv_result['cv_scores_detail']]}")
+        
+        # Statistical comparison
+        comparisons = self.get_statistical_comparison()
+        if comparisons:
+            output.append("\n" + "-" * 80)
+            output.append("\n=== Statistical Significance Testing (Paired t-test) ===")
+            for comp_name, comp_data in comparisons.items():
+                output.append(f"\n{comp_data['model1']} vs {comp_data['model2']}:")
+                output.append(f"  Mean accuracy: {comp_data['model1_mean']:.4f} vs {comp_data['model2_mean']:.4f}")
+                output.append(f"  t-statistic: {comp_data['t_statistic']:.4f}")
+                output.append(f"  p-value: {comp_data['p_value']:.4f}")
+                output.append(f"  Significant: {'Yes' if comp_data['significant'] else 'No'} (α=0.05)")
+                if comp_data['significant']:
+                    output.append(f"  Winner: {comp_data['better_model']}")
+        
+        output.append("\n" + "=" * 80)
+        return "\n".join(output)
 
 def hyperparameter_tuning(X_train, y_train, model_type='random_forest', cv=3):
     """Perform hyperparameter tuning for specified model."""
