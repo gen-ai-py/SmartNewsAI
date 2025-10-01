@@ -100,6 +100,7 @@ class FeatureExtractor:
         self.vectorizer = None
         self.label_encoder = LabelEncoder()
         self.preprocessor = TextPreprocessor()
+        self._vocab_size = 0  # Track vocabulary size for serialization
     
     def fit_transform_text(self, texts):
         """Fit vectorizer and transform texts to feature vectors."""
@@ -125,6 +126,8 @@ class FeatureExtractor:
             )
         
         features = self.vectorizer.fit_transform(processed_texts)
+        self._vocab_size = len(self.vectorizer.vocabulary_)
+        logging.info(f"Vocabulary size: {self._vocab_size}")
         return features
     
     def transform_text(self, texts):
