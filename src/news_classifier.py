@@ -23,6 +23,12 @@ try:
 except ImportError:
     logger = logging.getLogger(__name__)
 
+# Import metrics exporter for tracking model performance
+try:
+    from .metrics_exporter import MetricsCollector
+except ImportError:
+    MetricsCollector = None
+
 class NewsClassifier:
     """Multi-algorithm news classifier with model comparison and selection."""
     
